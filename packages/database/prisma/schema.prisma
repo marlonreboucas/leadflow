@@ -1,0 +1,882 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+//                            Enums
+// ============================================================
+enum CompanyStatus {
+  ACTIVE
+  TRIAL
+  SUSPENDED
+  CANCELED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum BillingProvider {
+  STRIPE
+  ASAAS
+  MERCADO_PAGO
+  MANUAL
+}
+
+enum RoleSlug {
+  OWNER
+  ADMIN
+  MANAGER
+  ATTENDANT
+  SALES
+  FINANCE
+  READONLY
+  AI_AGENT
+}
+
+enum WAInstanceStatus {
+  PENDING
+  CONNECTING
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
+enum ConversationStatus {
+  NEW
+  IN_PROGRESS
+  WITH_AI
+  WAITING_HUMAN
+  WAITING_CUSTOMER
+  FINISHED
+  LOST
+  SPAM
+}
+
+enum HandlingMode {
+  HUMAN
+  AI
+  AI_SUGGEST
+  AI_FIRST
+  AUTO_ROUTING
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  LOCATION
+  CONTACT
+  STICKER
+  REACTION
+  SYSTEM
+}
+
+enum SenderType {
+  CONTACT
+  USER
+  AI_AGENT
+  SYSTEM
+  AUTOMATION
+}
+
+enum LeadTemperature {
+  COLD
+  WARM
+  HOT
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum AgentType {
+  SDR
+  SALES
+  SUPPORT
+  SCHEDULING
+  RECOVERY
+  FINANCE
+  SUPERVISOR
+  CUSTOM
+}
+
+enum AgentMode {
+  FULL_AUTO
+  SUGGEST
+  OFF_HOURS_ONLY
+  NEW_LEADS_ONLY
+  STAGE_ONLY
+  HUMAN_APPROVAL
+}
+
+enum TaskStatus {
+  PENDING
+  DOING
+  DONE
+  CANCELED
+}
+
+enum TaskKind {
+  TASK
+  APPOINTMENT
+}
+
+enum AutomationTrigger {
+  MESSAGE_RECEIVED
+  LEAD_CREATED
+  LEAD_STAGE_CHANGED
+  CONVERSATION_ASSIGNED
+  AI_CLASSIFIED
+  LEAD_IDLE
+  TASK_OVERDUE
+  KEYWORD_DETECTED
+  OFF_HOURS
+  PROPOSAL_SENT
+  CONVERSATION_FINISHED
+}
+
+enum AutomationActionType {
+  SEND_WHATSAPP_MESSAGE
+  RUN_AI_AGENT
+  SUGGEST_REPLY
+  ASSIGN_HUMAN
+  MOVE_STAGE
+  CREATE_TASK
+  APPLY_TAG
+  SEND_N8N_WEBHOOK
+  NOTIFY_TEAM
+  CREATE_SUMMARY
+  CREATE_FUTURE_EVENT
+  PAUSE_AI
+  TRANSFER_CONVERSATION
+}
+
+enum WebhookDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  INVITE
+  PERMISSION_CHANGE
+}
+
+// ============================================================
+//                          Tenancy
+// ============================================================
+model Company {
+  id              String        @id @default(cuid())
+  name            String
+  slug            String        @unique
+  segment         String?
+  status          CompanyStatus @default(TRIAL)
+  timezone        String        @default("America/Sao_Paulo")
+  businessHours   Json?
+  defaultGreeting String?
+  settings        Json?
+  parentId        String?
+  parent          Company?      @relation("AgencyChildren", fields: [parentId], references: [id])
+  children        Company[]     @relation("AgencyChildren")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  users          CompanyUser[]
+  subscription   Subscription?
+  usage          UsageLimit[]
+  instances      WhatsappInstance[]
+  contacts       Contact[]
+  conversations  Conversation[]
+  messages       Message[]
+  pipelines      Pipeline[]
+  deals          Deal[]
+  tasks          Task[]
+  tags           Tag[]
+  agents         AiAgent[]
+  knowledgeBases KnowledgeBase[]
+  automations    AutomationRule[]
+  templates      MessageTemplate[]
+  n8nHooks       N8nWebhook[]
+  webhookLogs    WebhookLog[]
+  auditLogs      AuditLog[]
+  roles          Role[]
+  summaries      AiConversationSummary[]
+  agentLogs      AiAgentLog[]
+  automationExecs AutomationExecution[]
+  calendarIntegration CalendarIntegration?
+
+  @@index([parentId])
+}
+
+model CalendarIntegration {
+  id             String   @id @default(cuid())
+  companyId      String   @unique
+  provider       String   @default("GOOGLE")
+  calendarId     String   @default("primary")
+  refreshToken   String?
+  accessToken    String?
+  tokenExpiresAt DateTime?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String
+  avatarUrl       String?
+  emailVerifiedAt DateTime?
+  twoFactorSecret String?
+  lastActiveCompanyId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  companies     CompanyUser[]
+  sentMessages  Message[]     @relation("UserMessages")
+  ownedDeals    Deal[]        @relation("DealOwner")
+  assignedTasks Task[]        @relation("TaskAssignee")
+  audits        AuditLog[]
+  invitesIssued Invite[]      @relation("InviteIssuer")
+}
+
+model CompanyUser {
+  id        String   @id @default(cuid())
+  companyId String
+  userId    String
+  roleId    String
+  isActive  Boolean  @default(true)
+  invitedBy String?
+  joinedAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id])
+
+  @@unique([companyId, userId])
+  @@index([userId])
+}
+
+model Invite {
+  id          String   @id @default(cuid())
+  companyId   String
+  email       String
+  roleId      String
+  token       String   @unique
+  issuedById  String
+  acceptedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  issuedBy User @relation("InviteIssuer", fields: [issuedById], references: [id])
+
+  @@index([companyId, email])
+}
+
+// ============================================================
+//                            RBAC
+// ============================================================
+model Role {
+  id          String   @id @default(cuid())
+  companyId   String?
+  slug        RoleSlug
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+
+  company     Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  members     CompanyUser[]
+
+  @@unique([companyId, slug])
+}
+
+model Permission {
+  id    String @id @default(cuid())
+  key   String @unique
+  group String
+  roles RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+// ============================================================
+//                          Billing
+// ============================================================
+model Plan {
+  id                String         @id @default(cuid())
+  slug              String         @unique
+  name              String
+  monthlyPriceCents Int
+  yearlyPriceCents  Int
+  limits            Json
+  isActive          Boolean        @default(true)
+  subscriptions     Subscription[]
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  companyId          String             @unique
+  planId             String
+  provider           BillingProvider
+  externalId         String?
+  status             SubscriptionStatus @default(TRIAL)
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean            @default(false)
+
+  company Company        @relation(fields: [companyId], references: [id])
+  plan    Plan           @relation(fields: [planId], references: [id])
+  events  BillingEvent[]
+}
+
+model BillingEvent {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  type           String
+  payload        Json
+  createdAt      DateTime @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+}
+
+model UsageLimit {
+  id        String  @id @default(cuid())
+  companyId String
+  metric    String
+  period    String
+  used      Int     @default(0)
+  limit     Int
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, metric, period])
+}
+
+// ============================================================
+//                      WhatsApp / Evolution
+// ============================================================
+model WhatsappInstance {
+  id              String           @id @default(cuid())
+  companyId       String
+  externalName    String           @unique
+  phoneNumber     String?
+  status          WAInstanceStatus @default(PENDING)
+  qrCode          String?
+  lastConnectedAt DateTime?
+  webhookToken    String           @unique
+  settings        Json?
+  createdAt       DateTime         @default(now())
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  conversations Conversation[]
+
+  @@index([companyId])
+}
+
+// ============================================================
+//                  Contacts / Conversations / Messages
+// ============================================================
+model Contact {
+  id           String   @id @default(cuid())
+  companyId    String
+  phone        String
+  name         String?
+  email        String?
+  avatarUrl    String?
+  origin       String?
+  segment      String?
+  notes        String?
+  customFields Json?
+  blocked      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  conversations Conversation[]
+  deals         Deal[]
+  tags          ContactTag[]
+
+  @@unique([companyId, phone])
+  @@index([companyId, name])
+}
+
+model Conversation {
+  id             String             @id @default(cuid())
+  companyId      String
+  contactId      String
+  instanceId     String
+  status         ConversationStatus @default(NEW)
+  handlingMode   HandlingMode       @default(AI_FIRST)
+  currentAgentId String?
+  assignedUserId String?
+  unreadCount    Int                @default(0)
+  lastMessageAt  DateTime?
+  isAiPaused    Boolean             @default(false)
+  aiPausedReason String?
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  company      Company                @relation(fields: [companyId], references: [id])
+  contact      Contact                @relation(fields: [contactId], references: [id])
+  instance     WhatsappInstance       @relation(fields: [instanceId], references: [id])
+  currentAgent AiAgent?               @relation("ConversationAgent", fields: [currentAgentId], references: [id])
+  messages     Message[]
+  summaries    AiConversationSummary[]
+  deals        Deal[]
+  appointments Task[]
+
+  @@index([companyId, status])
+  @@index([companyId, lastMessageAt])
+  @@index([assignedUserId])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  companyId      String
+  conversationId String
+  externalId     String?          @unique
+  direction      MessageDirection
+  type           MessageType      @default(TEXT)
+  status         MessageStatus    @default(PENDING)
+  senderType     SenderType
+  senderUserId   String?
+  senderAgentId  String?
+  body           String?
+  mediaUrl       String?
+  mediaMime      String?
+  metadata       Json?
+  errorReason    String?
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  senderUser   User?        @relation("UserMessages", fields: [senderUserId], references: [id])
+  senderAgent  AiAgent?     @relation("AgentMessages", fields: [senderAgentId], references: [id])
+
+  @@index([companyId, conversationId, createdAt])
+  @@index([conversationId, createdAt])
+}
+
+// ============================================================
+//                            CRM
+// ============================================================
+model Pipeline {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  niche     String?
+  isDefault Boolean  @default(false)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  company Company         @relation(fields: [companyId], references: [id])
+  stages  PipelineStage[]
+  deals   Deal[]
+}
+
+model PipelineStage {
+  id             String  @id @default(cuid())
+  pipelineId     String
+  name           String
+  position       Int
+  isWon          Boolean @default(false)
+  isLost         Boolean @default(false)
+  color          String?
+  winProbability Int?    // 0–100 para forecast (etapas abertas)
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@unique([pipelineId, position])
+}
+
+model Deal {
+  id             String          @id @default(cuid())
+  companyId      String
+  pipelineId     String
+  stageId        String
+  contactId      String
+  conversationId String?
+  title          String
+  valueCents     Int             @default(0)
+  status         DealStatus      @default(OPEN)
+  temperature    LeadTemperature @default(COLD)
+  aiScore        Int?
+  ownerUserId    String?
+  ownerAgentId   String?
+  lossReason     String?
+  winReason      String?
+  nextActionAt   DateTime?
+  closedAt       DateTime?
+  customFields   Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  pipeline     Pipeline      @relation(fields: [pipelineId], references: [id])
+  stage        PipelineStage @relation(fields: [stageId], references: [id])
+  contact      Contact       @relation(fields: [contactId], references: [id])
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
+  ownerUser    User?         @relation("DealOwner", fields: [ownerUserId], references: [id])
+  ownerAgent   AiAgent?      @relation("DealAgent", fields: [ownerAgentId], references: [id])
+  tasks        Task[]
+  tags         DealTag[]
+
+  @@index([companyId, stageId])
+  @@index([companyId, ownerUserId])
+  @@index([companyId, ownerAgentId])
+}
+
+model Task {
+  id               String     @id @default(cuid())
+  companyId        String
+  title            String
+  description      String?
+  kind             TaskKind   @default(TASK)
+  status           TaskStatus @default(PENDING)
+  dueAt            DateTime?
+  durationMinutes  Int        @default(60)
+  assigneeUserId   String?
+  dealId           String?
+  conversationId   String?
+  createdByAgentId String?
+  reminderSentAt   DateTime?
+  googleEventId    String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  assignee User?    @relation("TaskAssignee", fields: [assigneeUserId], references: [id])
+  deal     Deal?    @relation(fields: [dealId], references: [id])
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
+  createdByAgent AiAgent? @relation("TaskCreator", fields: [createdByAgentId], references: [id])
+
+  @@index([companyId, dueAt, status])
+  @@index([companyId, kind, dueAt])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  color     String?
+
+  company  Company      @relation(fields: [companyId], references: [id])
+  contacts ContactTag[]
+  deals    DealTag[]
+
+  @@unique([companyId, name])
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+model DealTag {
+  dealId String
+  tagId  String
+  deal   Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([dealId, tagId])
+}
+
+// ============================================================
+//                       AI Agents
+// ============================================================
+model AiAgent {
+  id                 String    @id @default(cuid())
+  companyId          String
+  name               String
+  avatarUrl          String?
+  type               AgentType
+  model              String    @default("gpt-4o-mini")
+  systemPrompt       String
+  voiceTone          String?
+  objective          String?
+  mode               AgentMode @default(SUGGEST)
+  allowedChannels    Json?
+  allowedPipelineIds Json?
+  allowedStageIds    Json?
+  allowedTagIds      Json?
+  allowedTemplateIds Json?
+  requiredQuestions  Json?
+  transferOn         Json?
+  businessHours      Json?
+  isActive           Boolean   @default(true)
+  temperature        Float     @default(0.4)
+  maxTokens          Int       @default(800)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company        Company               @relation(fields: [companyId], references: [id])
+  rules          AiAgentRule[]
+  knowledgeBases AiAgentKnowledgeBase[]
+  logs           AiAgentLog[]
+  conversations  Conversation[]        @relation("ConversationAgent")
+  messages       Message[]             @relation("AgentMessages")
+  ownedDeals     Deal[]                @relation("DealAgent")
+  createdTasks   Task[]                @relation("TaskCreator")
+
+  @@index([companyId, type])
+}
+
+model AiAgentRule {
+  id        String   @id @default(cuid())
+  agentId   String
+  position  Int
+  type      String
+  condition Json
+  action    Json
+
+  agent AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model KnowledgeBase {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  company Company                @relation(fields: [companyId], references: [id])
+  items   KnowledgeItem[]
+  agents  AiAgentKnowledgeBase[]
+}
+
+model KnowledgeItem {
+  id        String   @id @default(cuid())
+  kbId      String
+  kind      String
+  title     String
+  content   String
+  metadata  Json?
+  // embedding stored via raw SQL (pgvector) — managed in a custom migration
+  createdAt DateTime @default(now())
+
+  kb KnowledgeBase @relation(fields: [kbId], references: [id], onDelete: Cascade)
+
+  @@index([kbId, kind])
+}
+
+model AiAgentKnowledgeBase {
+  agentId String
+  kbId    String
+
+  agent AiAgent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  kb    KnowledgeBase @relation(fields: [kbId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, kbId])
+}
+
+model AiAgentLog {
+  id             String   @id @default(cuid())
+  companyId      String
+  agentId        String
+  conversationId String?
+  decision       String
+  reasoning      String?
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  costCents      Int      @default(0)
+  latencyMs      Int?
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  agent   AiAgent @relation(fields: [agentId], references: [id])
+
+  @@index([companyId, agentId, createdAt])
+}
+
+model AiConversationSummary {
+  id             String   @id @default(cuid())
+  companyId      String
+  conversationId String
+  summary        String
+  lastMessageId  String?
+  createdAt      DateTime @default(now())
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+// ============================================================
+//                       Automations
+// ============================================================
+model AutomationRule {
+  id            String            @id @default(cuid())
+  companyId     String
+  name          String
+  isActive      Boolean           @default(true)
+  trigger       AutomationTrigger
+  triggerConfig Json?
+  runOrder      Int               @default(100)
+
+  company    Company               @relation(fields: [companyId], references: [id])
+  conditions AutomationCondition[]
+  actions    AutomationAction[]
+  executions AutomationExecution[]
+
+  @@index([companyId, trigger, isActive])
+}
+
+model AutomationCondition {
+  id       String @id @default(cuid())
+  ruleId   String
+  field    String
+  operator String
+  value    Json
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+}
+
+model AutomationAction {
+  id       String               @id @default(cuid())
+  ruleId   String
+  type     AutomationActionType
+  position Int                  @default(0)
+  config   Json
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+}
+
+model AutomationExecution {
+  id          String   @id @default(cuid())
+  ruleId      String
+  companyId   String
+  triggeredBy Json?
+  status      String
+  log         Json?
+  startedAt   DateTime
+  endedAt     DateTime?
+
+  company Company        @relation(fields: [companyId], references: [id])
+  rule    AutomationRule @relation(fields: [ruleId], references: [id])
+
+  @@index([companyId, ruleId, startedAt])
+}
+
+// ============================================================
+//                            n8n
+// ============================================================
+model N8nWebhook {
+  id        String  @id @default(cuid())
+  companyId String
+  name      String
+  url       String
+  secret    String
+  events    Json
+  isActive  Boolean @default(true)
+  retries   Int     @default(3)
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+}
+
+// ============================================================
+//                        Templates
+// ============================================================
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  niche     String?
+  body      String
+  variables Json?
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+}
+
+// ============================================================
+//                            Logs
+// ============================================================
+model WebhookLog {
+  id         String           @id @default(cuid())
+  companyId  String?
+  direction  WebhookDirection
+  source     String
+  endpoint   String?
+  status     Int?
+  payload    Json
+  response   Json?
+  durationMs Int?
+  createdAt  DateTime         @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, source, createdAt])
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  companyId String?
+  userId    String?
+  action    AuditAction
+  entity    String
+  entityId  String?
+  diff      Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id])
+
+  @@index([companyId, entity, createdAt])
+}

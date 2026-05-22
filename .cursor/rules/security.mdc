@@ -1,0 +1,11 @@
+---
+description: Segurança — segredos, OpenAI e dados sensíveis
+alwaysApply: true
+---
+
+# Segurança LeadFlow
+
+- Nunca escrever, commitar ou repetir chaves de API (OpenAI `sk-*`, JWT, Evolution) em código, docs versionados ou respostas.
+- `OPENAI_API_KEY` e segredos ficam apenas em `.env` (gitignored). Orientar o usuário a revogar chaves expostas no chat.
+- Não usar dados de conversas/contatos/clientes para "treinar" modelos fora do fluxo documentado (RAG na KB da empresa).
+- Queries Prisma sempre com `companyId`. Logs não devem incluir corpo de mensagens com PII em produção sem redação.

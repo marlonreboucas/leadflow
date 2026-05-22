@@ -1,0 +1,21 @@
+{
+  "name": "@leadflow/ai-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@leadflow/shared": "workspace:*",
+    "@leadflow/database": "workspace:*",
+    "bullmq": "^5.34.5",
+    "ioredis": "^5.4.2",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

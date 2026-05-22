@@ -1,0 +1,25 @@
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY apps/worker/package.json ./apps/worker/
+COPY packages/database/package.json ./packages/database/
+COPY packages/shared/package.json ./packages/shared/
+RUN pnpm install --frozen-lockfile
+
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN pnpm --filter @leadflow/database prisma generate \
+ && pnpm --filter @leadflow/shared build \
+ && pnpm --filter @leadflow/worker build
+
+FROM base AS runtime
+ENV NODE_ENV=production
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/worker/dist ./apps/worker/dist
+COPY --from=build /app/apps/worker/package.json ./apps/worker/
+COPY --from=build /app/packages ./packages
+CMD ["node", "apps/worker/dist/main.js"]

@@ -1,0 +1,123 @@
+name: leadflow-ai
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: leadflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-leadflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leadflow_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-leadflow}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-leadflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: leadflow-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  evolution-api:
+    # atendai/evolution-api:latest tem bug de QR (count:0). Use imagem mantida >= 2.3.7
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: leadflow-evolution
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SERVER_URL: http://localhost:8080
+      SERVER_PORT: 8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-change-me-evolution-api-global-key}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-leadflow}:${POSTGRES_PASSWORD:-leadflow_dev_password}@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_exchange
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/1
+      CACHE_REDIS_PREFIX_KEY: evolution
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      DEL_INSTANCE: "false"
+      LANGUAGE: pt-BR
+    ports:
+      - "8080:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: leadflow-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: ../.env
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-leadflow}:${POSTGRES_PASSWORD:-leadflow_dev_password}@postgres:5432/${POSTGRES_DB:-leadflow}?schema=public
+      REDIS_URL: redis://redis:6379
+      EVOLUTION_API_URL: http://evolution-api:8080
+    ports:
+      - "3001:3001"
+    profiles: ["full"]
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: leadflow-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: ../.env
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-leadflow}:${POSTGRES_PASSWORD:-leadflow_dev_password}@postgres:5432/${POSTGRES_DB:-leadflow}?schema=public
+      REDIS_URL: redis://redis:6379
+      EVOLUTION_API_URL: http://evolution-api:8080
+    profiles: ["full"]
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    container_name: leadflow-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    env_file: ../.env
+    ports:
+      - "3000:3000"
+    profiles: ["full"]
+
+volumes:
+  postgres_data:
+  redis_data:
+  evolution_instances:

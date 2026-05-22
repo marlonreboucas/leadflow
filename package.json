@@ -1,0 +1,39 @@
+{
+  "name": "leadflow-ai",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "dotenv -e .env -- turbo run dev --parallel",
+    "dev:ports": "powershell -ExecutionPolicy Bypass -File scripts/dev-ports.ps1",
+    "dev:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-leadflow-node.ps1",
+    "build": "dotenv -e .env -- turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "dotenv -e .env -- turbo run test",
+    "db:generate": "pnpm --filter @leadflow/database prisma generate",
+    "db:generate:win": "powershell -ExecutionPolicy Bypass -File scripts/prisma-generate.ps1",
+    "db:migrate": "dotenv -e .env -- pnpm --filter @leadflow/database prisma migrate dev",
+    "db:migrate:deploy": "dotenv -e .env -- pnpm --filter @leadflow/database prisma migrate deploy",
+    "db:apply-calendar": "dotenv -e .env -- pnpm --filter @leadflow/database prisma db execute --file prisma/migrations/20260521140000_task_appointments/migration.sql --schema prisma/schema.prisma",
+    "db:apply-forecast": "dotenv -e .env -- pnpm --filter @leadflow/database prisma db execute --file prisma/migrations/20260521160000_crm_forecast/migration.sql --schema prisma/schema.prisma",
+    "db:seed": "dotenv -e .env -- pnpm --filter @leadflow/database seed",
+    "db:studio": "dotenv -e .env -- pnpm --filter @leadflow/database prisma studio",
+    "docker:up": "docker compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f docker/docker-compose.yml down",
+    "docker:logs": "docker compose -f docker/docker-compose.yml logs -f",
+    "validate:crm": "node scripts/validate-crm-api.mjs",
+    "validate:health": "node scripts/validate-health.mjs",
+    "deploy:prod:up": "docker compose -f docker/docker-compose.prod.yml --env-file .env up -d --build",
+    "deploy:prod:migrate": "bash scripts/vps-migrate.sh"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^7.4.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "prettier": "^3.2.5"
+  }
+}

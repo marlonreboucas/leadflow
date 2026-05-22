@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter @leadflow/database exec prisma generate)",
+      "Bash(pnpm --filter @leadflow/api typecheck)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm -r typecheck)",
+      "Bash(pnpm exec *)",
+      "Bash(pnpm --filter @leadflow/shared build)",
+      "Bash(node --input-type=commonjs -e \"const s = require\\('@leadflow/shared'\\); console.log\\('exports:', Object.keys\\(s\\).slice\\(0,10\\)\\);\")",
+      "Bash(node --input-type=commonjs -e \"const s = require\\('@leadflow/shared'\\); console.log\\('exports:', Object.keys\\(s\\).slice\\(0,15\\)\\);\")",
+      "Bash(pnpm --filter @leadflow/api add -D pino-pretty)",
+      "Bash(curl -s -o /dev/null -w \"Health: %{http_code}\\\\n\" http://localhost:3001/health)",
+      "Bash(curl -s -o /dev/null -w \"API root: %{http_code}\\\\n\" http://localhost:3001/api)",
+      "Bash(curl -s -o /dev/null -w \"Auth login: %{http_code}\\\\n\" -X POST http://localhost:3001/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"demo@leadflow.ai\",\"password\":\"demo1234\"}')",
+      "Bash(curl *)",
+      "Bash(pnpm --filter @leadflow/web typecheck)"
+    ]
+  }
+}

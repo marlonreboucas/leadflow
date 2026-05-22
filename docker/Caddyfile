@@ -1,0 +1,16 @@
+# Substitua os domínios antes do deploy (variáveis não funcionam no Caddyfile — edite manualmente)
+# app.seudominio.com  → Web
+# api.seudominio.com  → API (+ WebSocket)
+# evo.seudominio.com  → Evolution Manager (opcional, só admin)
+
+app.seudominio.com {
+	reverse_proxy web:3000
+}
+
+api.seudominio.com {
+	reverse_proxy api:3001
+}
+
+evo.seudominio.com {
+	reverse_proxy evolution-api:8080
+}
