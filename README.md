@@ -97,6 +97,6 @@ Resumo rápido:
 
 **Só configurar fora (VPS, Evolution, OpenAI, n8n…):** [docs/CONFIGURACAO-EXTERNA.md](./docs/CONFIGURACAO-EXTERNA.md)
 
-**Deploy Hostinger VPS (passo a passo):** [docs/DEPLOY-HOSTINGER.md](./docs/DEPLOY-HOSTINGER.md)
+**Deploy Hostinger VPS:** [docs/DEPLOY-HOSTINGER.md](./docs/DEPLOY-HOSTINGER.md) · **RebFlow prod:** [docs/DEPLOY-REBFLOW-PROD.md](./docs/DEPLOY-REBFLOW-PROD.md)
 
 **Docs:** [DOCUMENTACAO-COMPLETA.md](./docs/DOCUMENTACAO-COMPLETA.md) · [SISTEMA-PRONTO.md](./docs/SISTEMA-PRONTO.md) · [DEPLOY-HOSTINGER.md](./docs/DEPLOY-HOSTINGER.md) · [DESENVOLVIMENTO-LOG.md](./docs/DESENVOLVIMENTO-LOG.md) · [PROXIMAS-FASES.md](./docs/PROXIMAS-FASES.md)

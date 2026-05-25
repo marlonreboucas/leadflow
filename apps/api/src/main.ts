@@ -13,9 +13,18 @@ async function bootstrap() {
   app.useWebSocketAdapter(redisIo);
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api', { exclude: ['health', 'webhooks/(.*)'] });
+  const corsOrigins = [
+    process.env.APP_URL,
+    process.env.API_URL,
+    'http://localhost:3000',
+    ...(process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()) ?? []),
+  ].filter((o): o is string => Boolean(o));
+
   app.enableCors({
-    origin: process.env.APP_URL?.split(',') ?? true,
+    origin: corsOrigins.length > 0 ? corsOrigins : true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
   app.useGlobalPipes(new ZodValidationPipe());
 

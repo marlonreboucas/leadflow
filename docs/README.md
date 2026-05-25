@@ -11,6 +11,7 @@
 | Visão geral + tudo que foi feito | [DOCUMENTACAO-COMPLETA.md](./DOCUMENTACAO-COMPLETA.md) |
 | Saber se o código está pronto | [SISTEMA-PRONTO.md](./SISTEMA-PRONTO.md) |
 | Subir em produção (Hostinger VPS) | [DEPLOY-HOSTINGER.md](./DEPLOY-HOSTINGER.md) |
+| RebFlow em produção (rebflow.com.br) | [DEPLOY-REBFLOW-PROD.md](./DEPLOY-REBFLOW-PROD.md) |
 | Configurar contas/serviços externos | [CONFIGURACAO-EXTERNA.md](./CONFIGURACAO-EXTERNA.md) |
 | WhatsApp + Inbox + IA | [WHATSAPP-INBOX-IA.md](./WHATSAPP-INBOX-IA.md) |
 | Calendário e agendamento | [AGENDAMENTO-CALENDARIO.md](./AGENDAMENTO-CALENDARIO.md) |

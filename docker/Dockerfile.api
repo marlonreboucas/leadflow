@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:20-bookworm AS base
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 WORKDIR /app
 
@@ -7,21 +7,32 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/database/package.json ./packages/database/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/google-calendar/package.json ./packages/google-calendar/
+COPY packages/ai-runtime/package.json ./packages/ai-runtime/
+COPY packages/automation/package.json ./packages/automation/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm --filter @leadflow/database prisma generate \
- && pnpm --filter @leadflow/shared build \
- && pnpm --filter @leadflow/api build
+
+RUN pnpm --filter @leadflow/database prisma generate
+RUN pnpm --filter @leadflow/database build
+RUN pnpm --filter @leadflow/shared build
+RUN pnpm --filter @leadflow/google-calendar build
+RUN pnpm --filter @leadflow/ai-runtime build
+RUN pnpm --filter @leadflow/automation build
+RUN pnpm --filter @leadflow/api build
 
 FROM base AS runtime
 ENV NODE_ENV=production
+
 COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/package.json ./apps/api/
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/package.json ./
+
 EXPOSE 3001
 CMD ["node", "apps/api/dist/main.js"]

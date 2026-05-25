@@ -133,7 +133,13 @@ Salve: `Ctrl+O`, Enter, `Ctrl+X`.
 nano docker/Caddyfile
 ```
 
-Troque `app.seudominio.com`, `api.seudominio.com` e `evo.seudominio.com` pelos seus subdomínios reais (3 blocos).
+Troque os domínios pelos seus subdomínios reais. Exemplo **RebFlow** já no repo:
+
+- `app.rebflow.com.br` → `web:3000`
+- `api.rebflow.com.br` → `api:3001`
+- `evo.rebflow.com.br` → `evolution:8080` (serviço chama-se `evolution` no compose prod)
+
+**Produção RebFlow (correções Docker/CORS):** [DEPLOY-REBFLOW-PROD.md](./DEPLOY-REBFLOW-PROD.md)
 
 ---
 
@@ -164,8 +170,17 @@ chmod +x scripts/vps-migrate.sh
 ## 10. Build e subir todos os serviços
 
 ```bash
-cd /opt/leadflow
+cd /opt/leadflow/leadflow
 docker compose -f docker/docker-compose.prod.yml --env-file .env up -d --build
+```
+
+**Sempre** use `-f docker/docker-compose.prod.yml` (sem isso sobe o compose de dev).
+
+Rebuild se login der 502/CORS:
+
+```bash
+docker compose -f docker/docker-compose.prod.yml --env-file .env build --no-cache
+docker compose -f docker/docker-compose.prod.yml --env-file .env up -d
 ```
 
 A primeira build pode levar **10–20 minutos**.

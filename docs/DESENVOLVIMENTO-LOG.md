@@ -20,6 +20,7 @@
 | Fase 7 | Calendário, Google opcional, onboarding |
 | Polimento CRM | Inbox Pipedrive, forecast, filtros, templates |
 | Deploy | `docker-compose.prod.yml`, Caddy, guia Hostinger |
+| RebFlow prod | rebflow.com.br, Docker bookworm, CORS, serviço `evolution` — [DEPLOY-REBFLOW-PROD.md](./DEPLOY-REBFLOW-PROD.md) |
 | Docs | `DOCUMENTACAO-COMPLETA.md`, índice `docs/README.md` |
 
 ---
