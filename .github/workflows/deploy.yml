@@ -1,58 +1,86 @@
-name: CI
+name: Deploy (VPS)
 
+# Deploy MANUAL: rode em Actions > Deploy (VPS) > "Run workflow".
+# Replica o processo atual na VPS (git pull + build + up + migrations).
+# Requer os secrets configurados (ver docs/CI-CD.md). Sem eles, o job falha.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch para fazer deploy
+        required: true
+        default: main
+      run_migrations:
+        description: Rodar prisma migrate deploy
+        type: boolean
+        default: true
+      run_seed:
+        description: Rodar seed (roles/planos). Não recria usuário demo em produção.
+        type: boolean
+        default: false
 
-# Cancela execuções antigas do mesmo branch/PR quando chega um push novo.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: deploy-vps
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Lint + Typecheck + Build
+  deploy:
+    name: Deploy via SSH
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    # Placeholders só para o build do Next não quebrar por env ausente.
-    # NÃO são segredos — apenas valores de compilação sem efeito em runtime.
-    env:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
-      NEXT_PUBLIC_WS_URL: http://localhost:3001
-      NEXT_PUBLIC_EVOLUTION_URL: http://localhost:8080
+    timeout-minutes: 30
+    environment: production
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      # Não-sensíveis vêm de Variables (vars.*); apenas a chave privada é Secret.
+      - name: Validar configuração
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          missing=0
+          if [ -z "$VPS_HOST" ]; then echo "::error::Variable VPS_HOST ausente"; missing=1; fi
+          if [ -z "$VPS_USER" ]; then echo "::error::Variable VPS_USER ausente"; missing=1; fi
+          if [ -z "$VPS_SSH_KEY" ]; then echo "::error::Secret VPS_SSH_KEY ausente"; missing=1; fi
+          if [ "$missing" = "1" ]; then
+            echo "Confira em Settings > Secrets and variables > Actions (ver docs/CI-CD.md)."
+            exit 1
+          fi
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.2.0
         with:
-          version: 9.0.0
+          host: ${{ vars.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ vars.VPS_PORT || 22 }}
+          command_timeout: 30m
+          script: |
+            set -euo pipefail
+            cd "${{ vars.VPS_PROJECT_DIR || '/opt/leadflow-ai' }}"
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
+            echo "==> Atualizando código (${{ github.event.inputs.branch }})"
+            git fetch --all --prune
+            git checkout "${{ github.event.inputs.branch }}"
+            git reset --hard "origin/${{ github.event.inputs.branch }}"
 
-      - name: Install deps
-        run: pnpm install --frozen-lockfile
+            echo "==> Build + up (docker-compose.prod)"
+            pnpm deploy:prod:up
 
-      - name: Gerar Prisma Client
-        run: pnpm db:generate
+            if [ "${{ github.event.inputs.run_migrations }}" = "true" ]; then
+              echo "==> Migrations"
+              pnpm deploy:prod:migrate
+            fi
 
-      - name: Typecheck
-        run: pnpm turbo run typecheck
+            if [ "${{ github.event.inputs.run_seed }}" = "true" ]; then
+              echo "==> Seed (roles/planos)"
+              pnpm deploy:prod:seed
+            fi
 
-      # Não-bloqueante: a API ainda não tem ESLint configurado (ver docs/CI-CD.md).
-      # Mantido como informativo até o ESLint da API ser configurado.
-      - name: Lint
-        run: pnpm turbo run lint
-        continue-on-error: true
+            echo "==> Status dos containers"
+            docker compose -f docker/docker-compose.prod.yml --env-file .env ps
 
-      - name: Build
-        run: pnpm turbo run build
+            echo "==> Limpando imagens antigas"
+            docker image prune -f || true
+
+            echo "==> Deploy concluído"
