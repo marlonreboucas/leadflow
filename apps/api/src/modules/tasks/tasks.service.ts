@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@leadflow/database';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
@@ -10,6 +6,10 @@ import type {
   UpdateTaskInput,
   ListTasksQuery,
 } from '@leadflow/shared';
+import {
+  assertDealInCompany,
+  assertUserInCompany,
+} from '../../common/tenant/tenant-guards';
 
 const taskInclude = {
   assignee: { select: { id: true, name: true, avatarUrl: true } },
@@ -53,19 +53,9 @@ export class TasksService {
   }
 
   async create(companyId: string, data: CreateTaskInput) {
-    if (data.dealId) {
-      const deal = await this.prisma.deal.findFirst({
-        where: { id: data.dealId, companyId },
-      });
-      if (!deal) throw new BadRequestException('Lead não encontrado');
-    }
+    if (data.dealId) await assertDealInCompany(this.prisma, companyId, data.dealId);
     if (data.assigneeUserId) {
-      const member = await this.prisma.companyUser.findUnique({
-        where: {
-          companyId_userId: { companyId, userId: data.assigneeUserId },
-        },
-      });
-      if (!member) throw new BadRequestException('Usuário não pertence à empresa');
+      await assertUserInCompany(this.prisma, companyId, data.assigneeUserId);
     }
     return this.prisma.task.create({
       data: { companyId, ...data },
@@ -76,12 +66,7 @@ export class TasksService {
   async update(companyId: string, id: string, data: UpdateTaskInput) {
     await this.get(companyId, id);
     if (data.assigneeUserId) {
-      const member = await this.prisma.companyUser.findUnique({
-        where: {
-          companyId_userId: { companyId, userId: data.assigneeUserId },
-        },
-      });
-      if (!member) throw new BadRequestException('Usuário não pertence à empresa');
+      await assertUserInCompany(this.prisma, companyId, data.assigneeUserId);
     }
     return this.prisma.task.update({
       where: { id },

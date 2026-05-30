@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleCalendarService } from '../../integrations/google-calendar/google-calendar.service';
+import {
+  assertConversationInCompany,
+  assertDealInCompany,
+} from '../../common/tenant/tenant-guards';
 
 @Injectable()
 export class CalendarService {
@@ -46,6 +50,11 @@ export class CalendarService {
   ) {
     const dueAt = new Date(input.dueAt);
     if (Number.isNaN(dueAt.getTime())) throw new BadRequestException('Data inválida');
+
+    if (input.dealId) await assertDealInCompany(this.prisma, companyId, input.dealId);
+    if (input.conversationId) {
+      await assertConversationInCompany(this.prisma, companyId, input.conversationId);
+    }
 
     const task = await this.prisma.task.create({
       data: {

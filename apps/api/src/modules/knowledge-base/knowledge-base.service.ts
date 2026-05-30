@@ -60,6 +60,11 @@ export class KnowledgeBaseService {
 
   async deleteItem(companyId: string, kbId: string, itemId: string) {
     await this.getBase(companyId, kbId);
+    const item = await this.prisma.knowledgeItem.findFirst({
+      where: { id: itemId, kbId },
+      select: { id: true },
+    });
+    if (!item) throw new NotFoundException('Item não encontrado nesta base');
     await this.prisma.knowledgeItem.delete({ where: { id: itemId } });
     return { ok: true };
   }

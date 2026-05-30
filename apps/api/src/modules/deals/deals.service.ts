@@ -15,6 +15,7 @@ import { QUEUES, SOCKET_EVENTS } from '@leadflow/shared';
 import type { AutomationContext } from '@leadflow/automation';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { QueuesService } from '../../queues/queues.service';
+import { assertUserInCompany } from '../../common/tenant/tenant-guards';
 
 const dealInclude = {
   contact: { select: { id: true, name: true, phone: true, email: true, avatarUrl: true } },
@@ -101,6 +102,8 @@ export class DealsService {
     });
     if (!contact) throw new NotFoundException('Contato não encontrado');
 
+    if (data.ownerUserId) await assertUserInCompany(this.prisma, companyId, data.ownerUserId);
+
     const stageId =
       data.stageId ??
       pipeline.stages.find((s) => !s.isWon && !s.isLost)?.id ??
@@ -146,6 +149,7 @@ export class DealsService {
 
   async update(companyId: string, id: string, data: UpdateDealInput) {
     await this.get(companyId, id);
+    if (data.ownerUserId) await assertUserInCompany(this.prisma, companyId, data.ownerUserId);
     return this.prisma.deal.update({
       where: { id },
       data,
