@@ -300,8 +300,12 @@ Ver [DEPLOY-HOSTINGER.md](./DEPLOY-HOSTINGER.md).
 | Ambiente | Arquivo / doc |
 |----------|----------------|
 | Local | `docker/docker-compose.yml` |
+| **Instalar do zero em VPS** | [INSTALACAO-VPS.md](./INSTALACAO-VPS.md) |
 | Produção VPS | `docker/docker-compose.prod.yml` + [DEPLOY-HOSTINGER.md](./DEPLOY-HOSTINGER.md) |
+| Correções RebFlow prod | [DEPLOY-REBFLOW-PROD.md](./DEPLOY-REBFLOW-PROD.md) |
 | Contas externas | [CONFIGURACAO-EXTERNA.md](./CONFIGURACAO-EXTERNA.md) |
+
+**Stack em produção rodando:** `rebflow.com.br` (Hostinger KVM2 / Ubuntu 24.04).
 
 **Hostinger VPS 8 GB** cobre: Postgres, Redis, Evolution, API, Worker, Web, HTTPS (Caddy).
 
@@ -362,6 +366,7 @@ Ver [DEPLOY-HOSTINGER.md](./DEPLOY-HOSTINGER.md).
 |-----------|----------|
 | [README.md](./README.md) | Índice da pasta docs |
 | [DOCUMENTACAO-COMPLETA.md](./DOCUMENTACAO-COMPLETA.md) | Este arquivo |
+| [INSTALACAO-VPS.md](./INSTALACAO-VPS.md) | Instalar do zero em VPS (passo a passo) |
 | [SISTEMA-PRONTO.md](./SISTEMA-PRONTO.md) | Checklist “está pronto?” |
 | [DESENVOLVIMENTO-LOG.md](./DESENVOLVIMENTO-LOG.md) | Log e histórico |
 | [PROXIMAS-FASES.md](./PROXIMAS-FASES.md) | Status fases + backlog |

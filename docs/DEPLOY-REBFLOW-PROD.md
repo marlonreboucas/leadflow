@@ -1,6 +1,10 @@
 # Deploy produção — RebFlow (rebflow.com.br)
 
-Documentação das correções aplicadas na VPS **2.24.116.70** para o stack Docker funcionar.
+> **Instalação do zero, passo a passo:** [INSTALACAO-VPS.md](./INSTALACAO-VPS.md) (guia repetível com todos os problemas resolvidos).
+>
+> Este arquivo detalha as **correções** aplicadas. Para subir um servidor novo, use o INSTALACAO-VPS.
+
+Documentação das correções aplicadas na VPS para o stack Docker funcionar.
 
 **DNS configurado:**
 
@@ -123,34 +127,64 @@ docker ps
 docker logs leadflow-prod-api-1 --tail 100
 docker logs leadflow-prod-caddy-1 --tail 50
 curl -s https://api.rebflow.com.br/health/ready
+# Se 404, tente (build antigo): curl -s https://api.rebflow.com.br/api/health/ready
 ```
 
-### Migrations (primeira vez)
+### Migrations (primeira vez) — método validado
+
+Rodar **dentro do container da API** (mais rápido, já tem Prisma + schema):
 
 ```bash
-./scripts/vps-migrate.sh
+docker exec -it leadflow-prod-api-1 \
+  sh -c "cd /app && pnpm --filter @leadflow/database prisma migrate deploy"
 ```
 
-### Seed demo (opcional, só teste)
+Sem isso o login dá **500** (`table public.User does not exist`).
+
+### Seed de base (roles + planos)
 
 ```bash
-# Só se quiser demo@leadflow.ai na produção — não recomendado em cliente real
-docker compose -f docker/docker-compose.prod.yml --env-file .env run --rm api ...
+docker exec -it leadflow-prod-api-1 \
+  sh -c "cd /app && pnpm --filter @leadflow/database exec tsx prisma/seed.ts"
 ```
 
-Melhor: **Criar conta** em `https://app.rebflow.com.br/signup`
+Cria permissions, roles e planos. O **usuário demo NÃO é criado em produção** (`NODE_ENV=production`).
+
+- **Produção:** criar conta em `https://app.rebflow.com.br/signup`
+- **Demo forçado (teste):**
+  ```bash
+  docker exec -it -e NODE_ENV=development leadflow-prod-api-1 \
+    sh -c "cd /app && pnpm --filter @leadflow/database exec tsx prisma/seed.ts"
+  ```
+
+### Testar login pela VPS
+
+```bash
+curl -sS -X POST https://api.rebflow.com.br/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@leadflow.ai","password":"demo1234"}'
+```
+
+Se **500**, veja o erro exato:
+
+```bash
+docker logs leadflow-prod-api-1 --tail 30
+```
 
 ---
 
-## 7. Erros comuns
-
-### Login: CORS + 502 no navegador
+## 7. Erros comuns (todos já resolvidos nesta instalação)
 
 | Sintoma | Causa | Ação |
 |---------|--------|------|
-| **502** no `api.../login` | API container parado ou crash | `docker logs leadflow-prod-api-1` |
-| **CORS error** | API down **ou** `APP_URL` errado no `.env` | Corrigir `.env`, rebuild **api** e **web** |
-| Preflight 502 | Caddy sem backend | `docker ps` — api deve estar `Up` |
+| **502** no `api.../login` | API container parado/crash | `docker logs leadflow-prod-api-1` |
+| **CORS error** | API down **ou** `APP_URL` errado | Corrigir `.env`, subir api |
+| **P1000** | senha Postgres ≠ `.env` (volume antigo) | `ALTER USER leadflow WITH PASSWORD '...'` |
+| **500** `table User does not exist` | migrations não rodaram | `prisma migrate deploy` no container api |
+| **401** após seed | demo não existe em produção | signup ou seed com `NODE_ENV=development` |
+| `/health/ready` **404** | prefixo `/api` | usar `/api/health/ready` |
+
+Lista completa e comandos: [INSTALACAO-VPS.md §14](./INSTALACAO-VPS.md).
 
 Ordem de diagnóstico:
 

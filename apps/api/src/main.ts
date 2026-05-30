@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import { RequestMethod } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { Logger } from 'nestjs-pino';
 import { ZodValidationPipe } from 'nestjs-zod';
@@ -12,7 +13,13 @@ async function bootstrap() {
   await redisIo.connectToRedis(redisUrl);
   app.useWebSocketAdapter(redisIo);
   app.useLogger(app.get(Logger));
-  app.setGlobalPrefix('api', { exclude: ['health', 'webhooks/(.*)'] });
+  app.setGlobalPrefix('api', {
+    exclude: [
+      { path: 'health', method: RequestMethod.ALL },
+      { path: 'health/(.*)', method: RequestMethod.ALL },
+      { path: 'webhooks/(.*)', method: RequestMethod.ALL },
+    ],
+  });
   const corsOrigins = [
     process.env.APP_URL,
     process.env.API_URL,

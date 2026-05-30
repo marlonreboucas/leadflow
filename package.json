@@ -29,7 +29,8 @@
     "validate:health": "node scripts/validate-health.mjs",
     "deploy:prod:up": "docker compose -f docker/docker-compose.prod.yml --env-file .env up -d --build",
     "deploy:prod:build": "docker compose -f docker/docker-compose.prod.yml --env-file .env build --no-cache",
-    "deploy:prod:migrate": "bash scripts/vps-migrate.sh"
+    "deploy:prod:migrate": "bash scripts/vps-migrate.sh",
+    "deploy:prod:seed": "bash scripts/vps-seed.sh"
   },
   "devDependencies": {
     "dotenv-cli": "^7.4.0",

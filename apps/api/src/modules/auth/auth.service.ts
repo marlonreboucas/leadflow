@@ -84,9 +84,16 @@ export class AuthService {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Credenciais inválidas');
 
-    if (user.companies.length === 0) throw new UnauthorizedException('Usuário sem empresa associada');
+    if (user.companies.length === 0) {
+      throw new UnauthorizedException('Usuário sem empresa associada');
+    }
     const active =
       user.companies.find((c) => c.companyId === user.lastActiveCompanyId) ?? user.companies[0];
+    if (!active?.role) {
+      throw new UnauthorizedException(
+        'Perfil de acesso não configurado. Rode o seed ou crie a conta em /signup.',
+      );
+    }
 
     return this.issueTokens({
       userId: user.id,
