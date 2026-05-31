@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, setTokens } from '@/lib/api';
+import { useAuth } from '@/lib/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -137,6 +138,8 @@ export default function SettingsPage() {
 
       <AgencyChildCard />
 
+      <SecurityCard />
+
       <Card>
         <CardHeader>
           <CardTitle>Plano</CardTitle>
@@ -154,6 +157,102 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function SecurityCard() {
+  const setSession = useAuth((s) => s.setSession);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: async () =>
+      (await api.post('/auth/change-password', { currentPassword, newPassword })).data,
+    onSuccess: (data: {
+      accessToken: string;
+      refreshToken: string;
+      user: { id: string; email: string; companyId: string; roleSlug: string };
+    }) => {
+      // A troca de senha revoga as sessões antigas e reemite tokens: atualiza
+      // a sessão atual com os novos tokens para o usuário não ser deslogado.
+      setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+      setSession(data);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirm('');
+      toast.success('Senha alterada. Outras sessões foram desconectadas.');
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) => {
+      toast.error(e?.response?.data?.message ?? 'Erro ao alterar senha');
+    },
+  });
+
+  const mismatch = confirm.length > 0 && newPassword !== confirm;
+  const canSubmit =
+    currentPassword.length > 0 &&
+    newPassword.length >= 8 &&
+    newPassword === confirm &&
+    !mutation.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Segurança</CardTitle>
+        <CardDescription>
+          Alterar senha desconecta as demais sessões deste usuário
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (canSubmit) mutation.mutate();
+          }}
+        >
+          <div className="space-y-1">
+            <Label htmlFor="currentPassword">Senha atual</Label>
+            <Input
+              id="currentPassword"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="newPassword">Nova senha</Label>
+            <Input
+              id="newPassword"
+              type="password"
+              autoComplete="new-password"
+              placeholder="Mínimo de 8 caracteres"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="confirmPassword">Confirmar nova senha</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+            {mismatch && (
+              <p className="text-xs text-destructive">As senhas não coincidem</p>
+            )}
+          </div>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={!canSubmit}>
+              {mutation.isPending ? 'Salvando...' : 'Alterar senha'}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 

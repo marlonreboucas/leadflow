@@ -53,7 +53,11 @@ export default function LoginPage() {
             <Input id="password" type="password" autoComplete="current-password" {...register('password')} />
             {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button
+            type="submit"
+            className="w-full bg-indigo-600 text-white hover:bg-indigo-700"
+            disabled={loading}
+          >
             {loading ? 'Entrando...' : 'Entrar'}
           </Button>
           <p className="text-sm text-center text-muted-foreground">

@@ -1,6 +1,6 @@
 'use client';
 import { useAuth } from '@/lib/auth-store';
-import { setTokens } from '@/lib/api';
+import { api, setTokens } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
@@ -10,7 +10,10 @@ export function Topbar() {
   const clear = useAuth((s) => s.clear);
   const router = useRouter();
 
-  function logout() {
+  async function logout() {
+    // Revoga as sessões no servidor (incrementa tokenVersion). Best-effort:
+    // mesmo que falhe, limpamos o estado local e voltamos ao login.
+    await api.post('/auth/logout').catch(() => undefined);
     clear();
     setTokens(null);
     router.replace('/login');

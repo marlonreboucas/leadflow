@@ -45,6 +45,21 @@ api.interceptors.request.use((config) => {
 
 let refreshing: Promise<void> | null = null;
 
+/**
+ * Sessão inválida/revogada (refresh falhou): limpa tokens + estado persistido
+ * e força novo login. Cobre o caso de tokenVersion incrementado (logout em
+ * outro device, troca de senha) em que o refresh token deixa de ser aceito.
+ */
+function handleSessionExpired() {
+  setTokens(null);
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('leadflow.auth');
+    if (!window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
+  }
+}
+
 api.interceptors.response.use(
   (r) => r,
   async (err: AxiosError) => {
@@ -52,13 +67,18 @@ api.interceptors.response.use(
     const original = err.config as any;
     if (status === 401 && refreshToken && !original?._retry) {
       original._retry = true;
-      refreshing ??= (async () => {
-        const { data } = await axios.post(`${baseURL}/api/auth/refresh`, { refreshToken });
-        setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
-      })().finally(() => {
-        refreshing = null;
-      });
-      await refreshing;
+      try {
+        refreshing ??= (async () => {
+          const { data } = await axios.post(`${baseURL}/api/auth/refresh`, { refreshToken });
+          setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+        })().finally(() => {
+          refreshing = null;
+        });
+        await refreshing;
+      } catch {
+        handleSessionExpired();
+        return Promise.reject(err);
+      }
       return api(original);
     }
     return Promise.reject(err);
