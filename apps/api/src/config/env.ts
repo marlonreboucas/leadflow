@@ -23,6 +23,13 @@ const envSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+
+  // RLS no Postgres (defesa em profundidade). Desligado por padrão: só ative
+  // após aplicar scripts/enable-rls.sql e validar em staging. Ver docs/RLS-OPTIONAL.md.
+  DB_RLS: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
 });
 
 export const env = envSchema.parse(process.env);
