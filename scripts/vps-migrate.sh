@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Roda migrations na VPS (Postgres já up via docker-compose.prod.yml)
+# Roda migrations DENTRO do container api (já tem Prisma + migrations + node_modules
+# embutidos na imagem). Não baixa nada da internet — funciona mesmo com a rede
+# interna sem acesso externo.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -8,31 +10,11 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1091
-source .env
-set +a
+COMPOSE="docker compose -f docker/docker-compose.prod.yml --env-file .env"
 
-NETWORK="${COMPOSE_PROJECT_NAME:-leadflow-prod}_internal"
-if ! docker network inspect "$NETWORK" >/dev/null 2>&1; then
-  echo "Rede $NETWORK não existe. Suba postgres antes:"
-  echo "  docker compose -f docker/docker-compose.prod.yml --env-file .env up -d postgres redis"
-  exit 1
-fi
+# Garante que o api está de pé (usa o DATABASE_URL já definido no container).
+$COMPOSE up -d api
 
-export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-leadflow}?schema=public"
-
-docker run --rm \
-  --network "$NETWORK" \
-  -v "$(pwd):/app" \
-  -w /app \
-  -e DATABASE_URL \
-  node:20-bookworm-slim \
-  bash -c "
-    apt-get update -qq && apt-get install -y -qq openssl ca-certificates >/dev/null
-    corepack enable && corepack prepare pnpm@9.0.0 --activate
-    pnpm install --frozen-lockfile
-    pnpm db:migrate:deploy
-  "
+$COMPOSE exec -T api sh -c "cd /app && pnpm --filter @leadflow/database prisma migrate deploy"
 
 echo "Migrations OK."
