@@ -261,6 +261,7 @@ model User {
   avatarUrl       String?
   emailVerifiedAt DateTime?
   twoFactorSecret String?
+  tokenVersion    Int       @default(0)
   lastActiveCompanyId String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

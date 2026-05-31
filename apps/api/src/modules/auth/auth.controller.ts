@@ -1,6 +1,12 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshDto, SignupDto, SwitchCompanyDto } from './dto';
+import {
+  ChangePasswordDto,
+  LoginDto,
+  RefreshDto,
+  SignupDto,
+  SwitchCompanyDto,
+} from './dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
@@ -34,6 +40,23 @@ export class AuthController {
   @Post('switch-company')
   switchCompany(@CurrentUser() user: AuthUser, @Body() body: SwitchCompanyDto) {
     return this.authService.switchCompany(user.userId, body.companyId);
+  }
+
+  @Post('logout')
+  @HttpCode(200)
+  logout(@CurrentUser() user: AuthUser) {
+    return this.authService.logout(user.userId);
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  changePassword(@CurrentUser() user: AuthUser, @Body() body: ChangePasswordDto) {
+    return this.authService.changePassword(
+      user.userId,
+      user.companyId,
+      body.currentPassword,
+      body.newPassword,
+    );
   }
 
   @Public()

@@ -23,7 +23,6 @@ export class AuthService {
 
     const ownerRole = await this.prisma.role.findFirstOrThrow({
       where: { companyId: null, slug: 'OWNER' },
-      include: { permissions: { include: { permission: true } } },
     });
 
     const starter = await this.prisma.plan.findUniqueOrThrow({ where: { slug: 'starter' } });
@@ -71,24 +70,25 @@ export class AuthService {
       email: result.user.email,
       companyId: result.company.id,
       roleSlug: 'OWNER',
-      permissions: ownerRole.permissions.map((rp) => rp.permission.key),
+      tokenVersion: result.user.tokenVersion,
     });
   }
 
   async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { companies: { include: { role: { include: { permissions: { include: { permission: true } } } } } } },
+      include: { companies: { include: { role: true } } },
     });
     if (!user) throw new UnauthorizedException('Credenciais inválidas');
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Credenciais inválidas');
 
-    if (user.companies.length === 0) {
+    const memberships = user.companies.filter((c) => c.isActive);
+    if (memberships.length === 0) {
       throw new UnauthorizedException('Usuário sem empresa associada');
     }
     const active =
-      user.companies.find((c) => c.companyId === user.lastActiveCompanyId) ?? user.companies[0];
+      memberships.find((c) => c.companyId === user.lastActiveCompanyId) ?? memberships[0];
     if (!active?.role) {
       throw new UnauthorizedException(
         'Perfil de acesso não configurado. Rode o seed ou crie a conta em /signup.',
@@ -100,23 +100,83 @@ export class AuthService {
       email: user.email,
       companyId: active.companyId,
       roleSlug: active.role.slug,
-      permissions: active.role.permissions.map((rp) => rp.permission.key),
+      tokenVersion: user.tokenVersion,
     });
   }
 
   async refresh(refreshToken: string) {
     let payload: JwtPayload;
     try {
-      payload = await this.jwt.verifyAsync<JwtPayload>(refreshToken, { secret: env.JWT_REFRESH_SECRET });
+      payload = await this.jwt.verifyAsync<JwtPayload>(refreshToken, {
+        secret: env.JWT_REFRESH_SECRET,
+      });
     } catch {
       throw new UnauthorizedException('Refresh token inválido');
     }
+
+    // Recarrega do banco: revogação (tokenVersion) e permissões atuais valem aqui também.
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: {
+        companies: { where: { companyId: payload.companyId, isActive: true }, include: { role: true } },
+      },
+    });
+    if (!user) throw new UnauthorizedException('Refresh token inválido');
+    if (user.tokenVersion !== payload.tv) {
+      throw new UnauthorizedException('Sessão revogada. Faça login novamente.');
+    }
+    const membership = user.companies[0];
+    if (!membership?.role) throw new UnauthorizedException('Sem acesso a esta empresa');
+
     return this.issueTokens({
-      userId: payload.sub,
-      email: payload.email,
-      companyId: payload.companyId,
-      roleSlug: payload.roleSlug,
-      permissions: payload.permissions,
+      userId: user.id,
+      email: user.email,
+      companyId: membership.companyId,
+      roleSlug: membership.role.slug,
+      tokenVersion: user.tokenVersion,
+    });
+  }
+
+  /** Revoga todas as sessões do usuário (logout em todos os dispositivos). */
+  async logout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    return { ok: true };
+  }
+
+  /** Troca de senha: valida a atual, revoga outras sessões e reemite a atual. */
+  async changePassword(
+    userId: string,
+    companyId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Usuário não encontrado');
+
+    const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!ok) throw new UnauthorizedException('Senha atual incorreta');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, tokenVersion: { increment: 1 } },
+    });
+
+    const membership = await this.prisma.companyUser.findUnique({
+      where: { companyId_userId: { companyId, userId } },
+      include: { role: true },
+    });
+    if (!membership?.role) throw new UnauthorizedException('Sem acesso a esta empresa');
+
+    return this.issueTokens({
+      userId,
+      email: updated.email,
+      companyId,
+      roleSlug: membership.role.slug,
+      tokenVersion: updated.tokenVersion,
     });
   }
 
@@ -172,7 +232,7 @@ export class AuthService {
 
     const membership = await this.prisma.companyUser.findUniqueOrThrow({
       where: { companyId_userId: { companyId: invite.companyId, userId: user.id } },
-      include: { role: { include: { permissions: { include: { permission: true } } } } },
+      include: { role: true },
     });
 
     return this.issueTokens({
@@ -180,16 +240,18 @@ export class AuthService {
       email: user.email,
       companyId: invite.companyId,
       roleSlug: membership.role.slug,
-      permissions: membership.role.permissions.map((rp) => rp.permission.key),
+      tokenVersion: user.tokenVersion,
     });
   }
 
   async switchCompany(userId: string, companyId: string) {
     const membership = await this.prisma.companyUser.findUnique({
       where: { companyId_userId: { companyId, userId } },
-      include: { user: true, role: { include: { permissions: { include: { permission: true } } } } },
+      include: { user: true, role: true },
     });
-    if (!membership) throw new UnauthorizedException('Usuário não pertence a esta empresa');
+    if (!membership || !membership.isActive) {
+      throw new UnauthorizedException('Usuário não pertence a esta empresa');
+    }
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -201,7 +263,7 @@ export class AuthService {
       email: membership.user.email,
       companyId,
       roleSlug: membership.role.slug,
-      permissions: membership.role.permissions.map((rp) => rp.permission.key),
+      tokenVersion: membership.user.tokenVersion,
     });
   }
 
@@ -210,14 +272,13 @@ export class AuthService {
     email: string;
     companyId: string;
     roleSlug: string;
-    permissions: string[];
+    tokenVersion: number;
   }) {
     const payload = {
       sub: input.userId,
       email: input.email,
       companyId: input.companyId,
-      roleSlug: input.roleSlug,
-      permissions: input.permissions,
+      tv: input.tokenVersion,
     };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, { secret: env.JWT_SECRET, expiresIn: env.JWT_EXPIRES_IN }),

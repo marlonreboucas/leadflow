@@ -30,3 +30,9 @@ export const resetSchema = z.object({
 export const switchCompanySchema = z.object({
   companyId: z.string().min(1),
 });
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
