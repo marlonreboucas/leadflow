@@ -26,7 +26,6 @@ export class BillingCheckoutService {
   }
 
   private async stripeCheckout(companyId: string, priceId: string, secretKey: string) {
-    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const appUrl = env.APP_URL.split(',')[0] ?? 'http://localhost:3000';
     const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',

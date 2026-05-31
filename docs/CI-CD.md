@@ -12,8 +12,12 @@ Dois workflows em `.github/workflows/`:
 ## 1. CI (automático)
 
 Roda a cada push/PR na `main`. Etapas: instala deps, gera Prisma Client, e roda
-`typecheck`, `lint` e `build` de todo o monorepo (via Turborepo). Serve de "porteiro":
-se algo quebra, você vê antes de subir pra produção. Não acessa a VPS nem usa segredos.
+`typecheck`, `lint` e `build` de todo o monorepo (via Turborepo). Os três são
+bloqueantes (quebrou, CI vermelho). Serve de "porteiro": se algo quebra, você vê
+antes de subir pra produção. Não acessa a VPS nem usa segredos.
+
+ESLint: a API usa `eslint` + `@typescript-eslint` (`apps/api/.eslintrc.cjs`) e o
+web usa `next lint` (`apps/web/.eslintrc.json`).
 
 Nada a configurar — já funciona assim que os arquivos estiverem na `main`.
 

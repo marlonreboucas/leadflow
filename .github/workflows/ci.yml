@@ -48,11 +48,8 @@ jobs:
       - name: Typecheck
         run: pnpm turbo run typecheck
 
-      # Não-bloqueante: a API ainda não tem ESLint configurado (ver docs/CI-CD.md).
-      # Mantido como informativo até o ESLint da API ser configurado.
       - name: Lint
         run: pnpm turbo run lint
-        continue-on-error: true
 
       - name: Build
         run: pnpm turbo run build

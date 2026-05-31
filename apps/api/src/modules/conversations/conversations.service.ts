@@ -153,7 +153,7 @@ export class ConversationsService {
   }
 
   async assume(companyId: string, id: string, userId: string) {
-    const conversation = await this.get(companyId, id);
+    await this.get(companyId, id);
     const updated = await this.prisma.conversation.update({
       where: { id },
       data: {
