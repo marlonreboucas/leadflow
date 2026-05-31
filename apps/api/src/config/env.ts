@@ -30,6 +30,9 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === 'true'),
+  // Timeout da transação por request quando DB_RLS=true (ms). Handlers com IO
+  // externo lento (IA, envio WhatsApp) devem ficar fora do RLS ou aumentar isto.
+  DB_RLS_TX_TIMEOUT_MS: z.coerce.number().default(15_000),
 });
 
 export const env = envSchema.parse(process.env);

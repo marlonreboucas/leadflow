@@ -28,22 +28,38 @@ usa `FORCE ROW LEVEL SECURITY` e cria a policy `tenant_isolation`).
 psql "$DATABASE_URL" -f scripts/enable-rls.sql
 ```
 
-## Lado da aplicação (já disponível, opt-in)
+## Lado da aplicação (implementado, opt-in)
 
-- **Flag `DB_RLS`** (env, padrão `false`): com `false`, nada muda; com `true`, o wrapper
-  passa a abrir transação e setar o tenant.
-- **`PrismaService.runWithTenant(companyId, fn)`**: executa `fn` numa transação com
-  `set_config('app.company_id', companyId, true)` (parametrizado, escopo da transação).
-  Quando `DB_RLS=false`, só roda `fn` com o client normal (sem custo).
+- **Flag `DB_RLS`** (env, padrão `false`): com `false` nada muda (sem custo); com `true`,
+  ativa o wiring global abaixo.
+- **Wiring global** — `TenantTransactionInterceptor` (registrado após o `TenantInterceptor`):
+  quando `DB_RLS=true` e o request tem tenant, abre uma transação, seta `app.company_id` e
+  executa o handler dentro dela. O `PrismaService` é um Proxy que roteia `prisma.<model>`
+  para a transação ativa (via AsyncLocalStorage), de modo que **nenhum serviço precisa mudar**.
+- **`PrismaService.runWithTenant(companyId, fn)`**: helper explícito; reaproveita a transação
+  ativa se houver, ou abre uma quando `DB_RLS=true`.
+- **`DB_RLS_TX_TIMEOUT_MS`** (padrão 15000): timeout da transação por request.
 
-```ts
-return this.prisma.runWithTenant(companyId, (tx) => tx.deal.findMany());
+### Como ligar (staging primeiro)
+
+```bash
+psql "$DATABASE_URL" -f scripts/enable-rls.sql   # aplica policies (FORCE RLS)
+# no .env do ambiente:
+DB_RLS=true
 ```
 
-**Pendente de decisão (wiring global):** adotar `runWithTenant` em todo o caminho de request
-(via interceptor lendo `CompanyContext`) tem custo de 1 transação por request e cuidados com
-timeout de transação interativa e respostas em streaming/websocket. Recomenda-se migrar os
-serviços de forma incremental e validar em **staging** antes de `DB_RLS=true` em produção.
+### Cuidados / limitações conhecidas (validar em staging)
+
+- **IO externo longo dentro do handler** (geração de IA, envio WhatsApp) roda dentro da
+  transação → pode estourar `DB_RLS_TX_TIMEOUT_MS` e segura uma conexão. Idealmente, mova
+  esse trabalho para fora do request (filas) ou aumente o timeout.
+- **`$transaction` aninhado**: `companies.service` (criar filial) abre seu próprio
+  `$transaction`; sob RLS global isso roda numa conexão sem `app.company_id` e será bloqueado.
+  Ajustar para `runWithTenant`/reuso da transação ativa antes de habilitar.
+- **Streaming/SSE/WebSocket**: o interceptor materializa a resposta (`lastValueFrom`); não use
+  em respostas em streaming.
+- **Role de conexão**: como o script usa `FORCE ROW LEVEL SECURITY`, vale inclusive para o
+  dono — mas confirme que a connection string da API/worker não usa superuser com BYPASSRLS.
 
 ## Recomendação
 

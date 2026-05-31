@@ -38,6 +38,7 @@ import { HealthController } from './health.controller';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
+import { TenantTransactionInterceptor } from './common/interceptors/tenant-transaction.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { CompanyThrottlerGuard } from './common/guards/company-throttler.guard';
 import { RedisThrottlerStorage } from './common/storage/redis-throttler.storage';
@@ -103,6 +104,7 @@ import { ThrottlerStorageModule } from './common/storage/throttler-storage.modul
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: TenantTransactionInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
