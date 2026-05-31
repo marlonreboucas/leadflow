@@ -13,7 +13,7 @@ export class BillingCheckoutService {
     const stripeKey = process.env.STRIPE_SECRET_KEY;
     const stripePriceId = (plan.limits as { stripePriceId?: string }).stripePriceId;
     if (stripeKey && stripePriceId) {
-      return this.stripeCheckout(companyId, stripePriceId, stripeKey);
+      return this.stripeCheckout(companyId, stripePriceId, stripeKey, plan.slug);
     }
 
     await this.activatePlan(companyId, plan.id);
@@ -25,7 +25,12 @@ export class BillingCheckoutService {
     };
   }
 
-  private async stripeCheckout(companyId: string, priceId: string, secretKey: string) {
+  private async stripeCheckout(
+    companyId: string,
+    priceId: string,
+    secretKey: string,
+    planSlug: string,
+  ) {
     const appUrl = env.APP_URL.split(',')[0] ?? 'http://localhost:3000';
     const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',
@@ -41,6 +46,11 @@ export class BillingCheckoutService {
         cancel_url: `${appUrl}/billing?canceled=1`,
         client_reference_id: companyId,
         'metadata[companyId]': companyId,
+        // planSlug é propagado para a subscription para que o webhook saiba
+        // qual plano ativar sem precisar consultar os line items.
+        'metadata[planSlug]': planSlug,
+        'subscription_data[metadata][companyId]': companyId,
+        'subscription_data[metadata][planSlug]': planSlug,
       }),
     });
     if (!res.ok) {
@@ -51,22 +61,31 @@ export class BillingCheckoutService {
     return { mock: false, url: data.url, sessionId: data.id };
   }
 
-  async activatePlan(companyId: string, planId: string) {
+  async activatePlan(
+    companyId: string,
+    planId: string,
+    opts: { externalId?: string; periodEnd?: Date } = {},
+  ) {
+    const provider = opts.externalId || process.env.STRIPE_SECRET_KEY ? 'STRIPE' : 'MANUAL';
+    const periodEnd = opts.periodEnd ?? new Date(Date.now() + 30 * 24 * 3600000);
     await this.prisma.subscription.upsert({
       where: { companyId },
       create: {
         companyId,
         planId,
-        provider: process.env.STRIPE_SECRET_KEY ? 'STRIPE' : 'MANUAL',
+        provider,
+        externalId: opts.externalId,
         status: 'ACTIVE',
         currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 3600000),
+        currentPeriodEnd: periodEnd,
       },
       update: {
         planId,
+        provider,
+        ...(opts.externalId ? { externalId: opts.externalId } : {}),
         status: 'ACTIVE',
         currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 3600000),
+        currentPeriodEnd: periodEnd,
       },
     });
     await this.prisma.company.update({

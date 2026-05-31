@@ -7,7 +7,9 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { RedisIoAdapter } from './redis-io.adapter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // rawBody: true mantém o corpo bruto em req.rawBody (Buffer) além do JSON
+  // parseado — necessário para validar a assinatura do webhook do Stripe.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
   const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
   const redisIo = new RedisIoAdapter(app);
   await redisIo.connectToRedis(redisUrl);

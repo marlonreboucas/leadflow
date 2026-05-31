@@ -24,7 +24,7 @@ Tudo abaixo roda **fora** do repositório. O app já está pronto para consumir 
 | Serviço | Variável | Quando usar |
 |---------|----------|-------------|
 | **n8n** (servidor seu) | — | Só se quiser workflows externos. No LeadFlow: `/integrations/n8n` cadastra URL do webhook n8n. **Não precisa** para Inbox/IA funcionar. |
-| **Stripe** | `STRIPE_SECRET_KEY` | Cobrança real; sem isso o checkout em `/billing` ativa plano em modo dev |
+| **Stripe** | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Cobrança real; sem isso o checkout em `/billing` ativa plano em modo dev. Ver [seção Stripe](#stripe--cobrança) |
 | **Domínio / HTTPS** | `APP_URL`, `NEXT_PUBLIC_API_URL` | Produção: `https://app...` e `https://api...` |
 
 ---
@@ -37,6 +37,22 @@ Tudo abaixo roda **fora** do repositório. O app já está pronto para consumir 
 4. Entrada n8n → LeadFlow: `POST /api/n8n/inbound/{companyId}/{slug}` com header `X-LeadFlow-Signature` (ver [AUTOMACOES-N8N.md](./AUTOMACOES-N8N.md)).
 
 **Inbox e agente IA não dependem de n8n.**
+
+---
+
+## Stripe — cobrança
+
+Sem `STRIPE_SECRET_KEY`, o checkout em `/billing` ativa o plano em **modo dev** (sem pagamento). Para cobrança real:
+
+1. **Chaves** — `STRIPE_SECRET_KEY` em [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys) (use chave de teste em dev).
+2. **Produtos/Preços** — crie um *Price* recorrente para cada plano e salve o `price_id` em `Plan.limits.stripePriceId` (no seed ou via admin). O checkout só usa o Stripe quando o plano tem `stripePriceId`.
+3. **Webhook** — em **Developers → Webhooks → Add endpoint**:
+   - URL: `https://api.seudominio.com/webhooks/stripe` (rota pública, fora do prefixo `/api`).
+   - Eventos: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`.
+   - Copie o **Signing secret** (`whsec_...`) para `STRIPE_WEBHOOK_SECRET`.
+4. **Em dev** — use o [Stripe CLI](https://stripe.com/docs/stripe-cli): `stripe listen --forward-to localhost:3001/webhooks/stripe` (ele imprime o `whsec_` a usar).
+
+**Fluxo:** checkout → pagamento → `checkout.session.completed` ativa a `Subscription` (status `ACTIVE`, `externalId` = id da subscription Stripe). Atualizações/cancelamentos chegam por `customer.subscription.updated/deleted`; falha de fatura marca `PAST_DUE`. A assinatura do webhook é validada via HMAC-SHA256 com tolerância de 5 min contra replay.
 
 ---
 
