@@ -3,7 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { RequestMethod } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { Logger } from 'nestjs-pino';
-import { ZodValidationPipe } from 'nestjs-zod';
+import { ZodValidationPipe, patchNestJsSwagger } from 'nestjs-zod';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { RedisIoAdapter } from './redis-io.adapter';
 
@@ -45,6 +46,19 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
   app.useGlobalPipes(new ZodValidationPipe());
+
+  // OpenAPI/Swagger em /docs (faz os DTOs Zod aparecerem no schema).
+  patchNestJsSwagger();
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('LeadFlow API')
+    .setDescription('API do LeadFlow — CRM + WhatsApp + IA multi-tenant')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+  });
 
   const port = Number(process.env.API_PORT ?? 3001);
   await app.listen(port);
