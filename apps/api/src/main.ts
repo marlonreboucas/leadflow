@@ -4,6 +4,7 @@ import { RequestMethod } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { Logger } from 'nestjs-pino';
 import { ZodValidationPipe } from 'nestjs-zod';
+import helmet from 'helmet';
 import { RedisIoAdapter } from './redis-io.adapter';
 
 async function bootstrap() {
@@ -15,6 +16,14 @@ async function bootstrap() {
   await redisIo.connectToRedis(redisUrl);
   app.useWebSocketAdapter(redisIo);
   app.useLogger(app.get(Logger));
+  // Security headers. CSP fica desligada (API serve JSON, não HTML) e o CORP
+  // é cross-origin para não bloquear o app web em outro domínio.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.setGlobalPrefix('api', {
     exclude: [
       { path: 'health', method: RequestMethod.ALL },

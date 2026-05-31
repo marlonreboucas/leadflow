@@ -81,6 +81,19 @@ export class StripeWebhookService {
 
   async handleEvent(event: StripeEvent): Promise<void> {
     this.logger.log(`Stripe event ${event.type} (${event.id})`);
+
+    // Idempotência: ignora entregas duplicadas do mesmo evento. Registramos
+    // após processar, para que falhas permitam retry do Stripe.
+    if (event.id) {
+      const seen = await this.prisma.processedWebhookEvent.findUnique({
+        where: { id: event.id },
+      });
+      if (seen) {
+        this.logger.debug(`Evento já processado: ${event.id}`);
+        return;
+      }
+    }
+
     switch (event.type) {
       case 'checkout.session.completed':
         await this.onCheckoutCompleted(event.data.object);
@@ -96,6 +109,12 @@ export class StripeWebhookService {
         break;
       default:
         this.logger.debug(`Stripe event ignorado: ${event.type}`);
+    }
+
+    if (event.id) {
+      await this.prisma.processedWebhookEvent
+        .create({ data: { id: event.id, provider: 'stripe', type: event.type } })
+        .catch(() => undefined);
     }
   }
 

@@ -383,6 +383,15 @@ model BillingEvent {
   subscription Subscription @relation(fields: [subscriptionId], references: [id])
 }
 
+/// Idempotência de webhooks: o id é o id do evento do provedor (ex.: Stripe
+/// evt_...). Registrar após processar impede reprocessar entregas duplicadas.
+model ProcessedWebhookEvent {
+  id        String   @id
+  provider  String
+  type      String
+  createdAt DateTime @default(now())
+}
+
 model UsageLimit {
   id        String  @id @default(cuid())
   companyId String
